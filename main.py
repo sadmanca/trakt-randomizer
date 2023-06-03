@@ -3,7 +3,7 @@ from dotenv import dotenv_values
 from random import shuffle
 import os.path
 import json
-import sys
+import time
 
 secrets = dotenv_values(".env")
 
@@ -17,7 +17,6 @@ Trakt.configuration.defaults.client(
     secret=secrets["API_SECRET"]
 )
 
-import time
 
 # Load authorization from file if it exists
 authorization_file = 'token.json'
@@ -88,7 +87,10 @@ if items is not None:
     print('...')
     print(*items[-2:], sep='\n') 
 
-    data = {'movies': [{'ids': {item.pk[0]: item.pk[1]}} for item in items]}
+    data = {
+        'movies': [{'ids': {'imdb': item.pk[1]}} for item in items if item.pk[0] == 'imdb'],
+        'shows':  [{'ids': {'tvdb': item.pk[1]}} for item in items if item.pk[0] == 'tvdb']
+    }
 
 # remove unshuffled items
 if data is not None:
@@ -104,8 +106,10 @@ if items is not None:
     print('...')
     print(*items[-2:], sep='\n')
 
-    data = {'movies': [{'ids': {item.pk[0]: item.pk[1]}} for item in items]}
-
+    data = {
+        'movies': [{'ids': {'imdb': item.pk[1]}} for item in items if item.pk[0] == 'imdb'],
+        'shows':  [{'ids': {'tvdb': item.pk[1]}} for item in items if item.pk[0] == 'tvdb']
+    }
 
 if data is not None:
     # Add shuffled items

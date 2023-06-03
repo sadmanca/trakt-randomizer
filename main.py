@@ -64,7 +64,15 @@ def configure_authorization(authorization):
 
 # Fetch list items
 def fetch_list_items(list_slug):
-    return Trakt['users/sadmanca/lists/' + list_slug].items()
+    max_retries = 4
+    retries = 0
+    while retries < max_retries:
+        items = Trakt['users/sadmanca/lists/' + list_slug].items()
+        if items is not None:
+            return items
+        retries += 1
+        time.sleep(3)
+    return None
 
 def fetch_cached_data(items):
     # Cache data if items is None

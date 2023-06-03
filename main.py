@@ -17,24 +17,48 @@ Trakt.configuration.defaults.client(
     secret=secrets["API_SECRET"]
 )
 
+import time
+
 # Load authorization from file if it exists
 authorization_file = 'token.json'
 if os.path.isfile(authorization_file):
     with open(authorization_file, 'r') as f:
-        authorization = json.load(f)
+        try:
+            authorization = json.load(f)
+        except json.JSONDecodeError:
+            authorization = None
 else:
     authorization = None
 
-# Request authentication if no authorization is found
-if not authorization or not authorization.get('access_token'):
-    print('Navigate to %s' % Trakt['oauth/pin'].url())
-    pin = input('Pin: ')
-    authorization = Trakt['oauth'].token_exchange(pin, 'urn:ietf:wg:oauth:2.0:oob')
-    if not authorization or not authorization.get('access_token'):
-        print('ERROR: Authentication failed')
-        exit(1)
-    with open(authorization_file, 'w') as f:
-        json.dump(authorization, f)
+# Calculate expiration time
+if authorization and 'created_at' in authorization and 'expires_in' in authorization:
+    expires_at = authorization['created_at'] + authorization['expires_in']
+else:
+    expires_at = 0
+
+# Refresh token if it has expired
+if authorization and time.time() > expires_at:
+    if Trakt['oauth'].token_refresh(authorization['refresh_token']):
+        authorization = Trakt['oauth'].token_exchange(authorization['refresh_token'])
+        authorization['created_at'] = time.time()
+        with open(authorization_file, 'w') as f:
+            json.dump(authorization, f)
+else:
+    # Use cached authorization if it exists
+    if authorization and 'access_token' in authorization:
+        Trakt.configuration.defaults.oauth.from_response(authorization)
+    else:
+        # Request authentication if no authorization is found or refresh fails
+        print('Navigate to %s' % Trakt['oauth/pin'].url())
+        pin = input('Pin: ')
+        authorization = Trakt['oauth'].token_exchange(pin, 'urn:ietf:wg:oauth:2.0:oob')
+        
+        if not authorization or not authorization.get('access_token'):
+            print('ERROR: Authentication failed')
+            exit(1)
+        authorization['created_at'] = time.time()
+        with open(authorization_file, 'w') as f:
+            json.dump(authorization, f)
 
 # Configure client to use your account `authorization` by default
 Trakt.configuration.defaults.oauth.from_response(authorization)
@@ -53,7 +77,6 @@ if items is None:
 
     if cached_data is None:
         print('ERROR: No cached data found')
-        # os.execv(sys.executable, ['python'] + sys.argv)
         exit(1)
     else:
         data = cached_data

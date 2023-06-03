@@ -1,22 +1,21 @@
 from trakt import Trakt
-from dotenv import dotenv_values
+from dotenv import load_dotenv
 from random import shuffle
-import os.path
+import os
 import json
 import time
 
-secrets = dotenv_values(".env")
+load_dotenv()
 
 # Configure client
 Trakt.configuration.defaults.app(
-    id=secrets["TRAKT_APP_ID"]  # (e.g. "478" for https://trakt.tv/oauth/applications/478)
+    id=os.environ.get('TRAKT_APP_ID')  # (e.g. "478" for https://trakt.tv/oauth/applications/478)
 )
 
 Trakt.configuration.defaults.client(
-    id=secrets["API_ID"],
-    secret=secrets["API_SECRET"]
+    id=os.environ.get('TRAKT_APP_API_ID'),
+    secret=os.environ.get('TRAKT_APP_API_SECRET')
 )
-
 
 # Load authorization from file if it exists
 authorization_file = 'token.json'

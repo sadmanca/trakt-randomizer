@@ -5,8 +5,6 @@ import os
 import json
 import time
 
-load_dotenv()
-
 AUTHORIZATION_FILE = 'token.json'
 
 def configure_client():
@@ -68,37 +66,39 @@ def configure_authorization(authorization):
 def fetch_list_items(list_slug):
     return Trakt['users/sadmanca/lists/' + list_slug].items()
 
-def main():
-    configure_client()
-    authorization = load_authorization()
-    authorization = refresh_token(authorization)
-    authenticate(authorization)
-    configure_authorization(authorization)
-    items = fetch_list_items('test')
-
-    # Cache data if items is NoneType
-    data = None
+def fetch_cached_data(items):
+    # Cache data if items is None
     if items is None:
-        with open('data.json', 'r') as f:
-            cached_data = json.load(f)
+        with open('data.json') as f:
+            return json.load(f)
 
-        if cached_data is None:
-            print('ERROR: No cached data found')
-            exit(1)
-        else:
-            data = cached_data
+    return {}
 
+def print_list_items(items, msg):
     if items is not None:
-        # Print list items
-        print('UNSHUFFLED:')
-        print(*items[:2], sep='\n')
-        print('...')
-        print(*items[-2:], sep='\n') 
+        print(msg)
+        for item in items[:2]:
+            print(f' {item}')
+        print(' ...')
+        for item in items[-2:]:
+            print(f' {item}')
 
-        data = {
-            'movies': [{'ids': {'imdb': item.pk[1]}} for item in items if item.pk[0] == 'imdb'],
-            'shows':  [{'ids': {'tvdb': item.pk[1]}} for item in items if item.pk[0] == 'tvdb']
-        }
+def format_data(items):
+    return {
+        'movies': [{'ids': {'imdb': item.pk[1]}} for item in items if item.pk[0] == 'imdb'],
+        'shows':  [{'ids': {'tvdb': item.pk[1]}} for item in items if item.pk[0] == 'tvdb']
+    }
+
+def cache_data(data):
+    # Cache data at end of program (if items is not NoneType)
+    if data:
+        with open('data.json', 'w') as f:
+            json.dump(data, f)
+
+def run(data, items):
+    if items is not None:
+        print_list_items(items, 'ORIGINAL:')
+        data = format_data(items)
 
     # remove unshuffled items
     if data is not None:
@@ -109,23 +109,24 @@ def main():
         shuffle(items)
 
         print('-------------------')
-        print('SHUFFLED:')
-        print(*items[:2], sep='\n')
-        print('...')
-        print(*items[-2:], sep='\n')
-
-        data = {
-            'movies': [{'ids': {'imdb': item.pk[1]}} for item in items if item.pk[0] == 'imdb'],
-            'shows':  [{'ids': {'tvdb': item.pk[1]}} for item in items if item.pk[0] == 'tvdb']
-        }
+        print_list_items(items, 'SHUFFLED:')
+        data = format_data(items)
 
     if data is not None:
         # Add shuffled items
         Trakt['users/sadmanca/lists/test'].add(data)
 
-        # Cache data at end of program (if items is not NoneType)
-        with open('data.json', 'w') as f:
-            json.dump(data, f)
+def main():
+    load_dotenv()
+    configure_client()
+    authorization = load_authorization()
+    authorization = refresh_token(authorization)
+    authenticate(authorization)
+    configure_authorization(authorization)
+    items = fetch_list_items('test')
+    data = fetch_cached_data(items)
+    run(data, items)
+    cache_data(data)
 
 if __name__ == '__main__':
     main()

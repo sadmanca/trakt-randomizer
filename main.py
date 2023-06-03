@@ -1,6 +1,8 @@
 from trakt import Trakt
 from dotenv import dotenv_values
 from random import shuffle
+import os.path
+import json
 
 secrets = dotenv_values(".env")
 
@@ -14,16 +16,24 @@ Trakt.configuration.defaults.client(
     secret=secrets["API_SECRET"]
 )
 
-# Request authentication
-print('Navigate to %s' % Trakt['oauth/pin'].url())
-pin = input('Pin: ')
+# Load authorization from file if it exists
+authorization_file = 'authorization.json'
+if os.path.isfile(authorization_file):
+    with open(authorization_file, 'r') as f:
+        authorization = json.load(f)
+else:
+    authorization = None
 
-# Exchange `pin` for an account authorization token
-authorization = Trakt['oauth'].token_exchange(pin, 'urn:ietf:wg:oauth:2.0:oob')
-
+# Request authentication if no authorization is found
 if not authorization or not authorization.get('access_token'):
-    print('ERROR: Authentication failed')
-    exit(1)
+    print('Navigate to %s' % Trakt['oauth/pin'].url())
+    pin = input('Pin: ')
+    authorization = Trakt['oauth'].token_exchange(pin, 'urn:ietf:wg:oauth:2.0:oob')
+    if not authorization or not authorization.get('access_token'):
+        print('ERROR: Authentication failed')
+        exit(1)
+    with open(authorization_file, 'w') as f:
+        json.dump(authorization, f)
 
 # Configure client to use your account `authorization` by default
 Trakt.configuration.defaults.oauth.from_response(authorization)

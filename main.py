@@ -3,6 +3,7 @@ from dotenv import dotenv_values
 from random import shuffle
 import os.path
 import json
+import sys
 
 secrets = dotenv_values(".env")
 
@@ -17,7 +18,7 @@ Trakt.configuration.defaults.client(
 )
 
 # Load authorization from file if it exists
-authorization_file = 'authorization.json'
+authorization_file = 'token.json'
 if os.path.isfile(authorization_file):
     with open(authorization_file, 'r') as f:
         authorization = json.load(f)
@@ -41,20 +42,52 @@ Trakt.configuration.defaults.oauth.from_response(authorization)
 # ------------------------------------------------------
 
 # Fetch list items
-items = Trakt['users/sadmanca/lists/test'].items()
+list_test = Trakt['users/sadmanca/lists/test'].get()
+items = list_test.items()
 
-# Print list items
-print('UNSHUFFLED:'), print(*items[:2], sep='\n'), print('...'), print(*items[-2:], sep='\n')
+# Cache data if items is NoneType
+data = None
+if items is None:
+    with open('data.json', 'r') as f:
+        cached_data = json.load(f)
+
+    if cached_data is None:
+        print('ERROR: No cached data found')
+        # os.execv(sys.executable, ['python'] + sys.argv)
+        exit(1)
+    else:
+        data = cached_data
+
+if items is not None:
+    # Print list items
+    print('UNSHUFFLED:')
+    print(*items[:2], sep='\n')
+    print('...')
+    print(*items[-2:], sep='\n') 
+
+    data = {'movies': [{'ids': {item.pk[0]: item.pk[1]}} for item in items]}
 
 # remove unshuffled items
-data = {'movies': [{'ids': {item.pk[0]: item.pk[1]}} for item in items]}
-Trakt['users/sadmanca/lists/test'].remove(data)
+if data is not None:
+    Trakt['users/sadmanca/lists/test'].remove(data)
 
-print('-------------------')
+# Shuffle items
+if items is not None:
+    shuffle(items)
 
-shuffle(items)
-print('SHUFFLED:'), print(*items[:2], sep='\n'), print('...'), print(*items[-2:], sep='\n')
+    print('-------------------')
+    print('SHUFFLED:')
+    print(*items[:2], sep='\n')
+    print('...')
+    print(*items[-2:], sep='\n')
 
-# add shuffled items
-data = {'movies': [{'ids': {item.pk[0]: item.pk[1]}} for item in items]}
-Trakt['users/sadmanca/lists/test'].add(data)
+    data = {'movies': [{'ids': {item.pk[0]: item.pk[1]}} for item in items]}
+
+
+if data is not None:
+    # Add shuffled items
+    Trakt['users/sadmanca/lists/test'].add(data)
+
+    # Cache data at end of program (if items is not NoneType)
+    with open('data.json', 'w') as f:
+        json.dump(data, f)

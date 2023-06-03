@@ -7,46 +7,43 @@ import time
 
 load_dotenv()
 
-# Configure client
-Trakt.configuration.defaults.app(
-    id=os.environ.get('TRAKT_APP_ID')  # (e.g. "478" for https://trakt.tv/oauth/applications/478)
-)
+AUTHORIZATION_FILE = 'token.json'
 
-Trakt.configuration.defaults.client(
-    id=os.environ.get('TRAKT_APP_API_ID'),
-    secret=os.environ.get('TRAKT_APP_API_SECRET')
-)
+def configure_client():
+    Trakt.configuration.defaults.app(
+        id=os.environ.get('TRAKT_APP_ID')
+    )
 
-# Load authorization from file if it exists
-authorization_file = 'token.json'
-if os.path.isfile(authorization_file):
-    with open(authorization_file, 'r') as f:
-        try:
-            authorization = json.load(f)
-        except json.JSONDecodeError:
-            authorization = None
-else:
-    authorization = None
+    Trakt.configuration.defaults.client(
+        id=os.environ.get('TRAKT_APP_API_ID'),
+        secret=os.environ.get('TRAKT_APP_API_SECRET')
+    )
 
-# Calculate expiration time
-if authorization and 'created_at' in authorization and 'expires_in' in authorization:
-    expires_at = authorization['created_at'] + authorization['expires_in']
-else:
-    expires_at = 0
-
-# Refresh token if it has expired
-if authorization and time.time() > expires_at:
-    if Trakt['oauth'].token_refresh(authorization['refresh_token']):
-        authorization = Trakt['oauth'].token_exchange(authorization['refresh_token'])
-        authorization['created_at'] = time.time()
-        with open(authorization_file, 'w') as f:
-            json.dump(authorization, f)
-else:
-    # Use cached authorization if it exists
-    if authorization and 'access_token' in authorization:
-        Trakt.configuration.defaults.oauth.from_response(authorization)
+def load_authorization():
+    if os.path.isfile(AUTHORIZATION_FILE):
+        with open(AUTHORIZATION_FILE, 'r') as f:
+            try:
+                authorization = json.load(f)
+            except json.JSONDecodeError:
+                authorization = None
     else:
-        # Request authentication if no authorization is found or refresh fails
+        authorization = None
+
+    return authorization
+
+def refresh_token(authorization):
+    expires_at = authorization['created_at'] + authorization['expires_in']
+    if time.time() > expires_at:
+        if Trakt['oauth'].token_refresh(authorization['refresh_token']):
+            authorization = Trakt['oauth'].token_exchange(authorization['refresh_token'])
+            authorization['created_at'] = time.time()
+            with open(AUTHORIZATION_FILE, 'w') as f:
+                json.dump(authorization, f)
+
+    return authorization
+
+def authenticate(authorization):
+    if not authorization or not authorization.get('access_token'):
         print('Navigate to %s' % Trakt['oauth/pin'].url())
         pin = input('Pin: ')
         authorization = Trakt['oauth'].token_exchange(pin, 'urn:ietf:wg:oauth:2.0:oob')
@@ -55,65 +52,80 @@ else:
             print('ERROR: Authentication failed')
             exit(1)
         authorization['created_at'] = time.time()
-        with open(authorization_file, 'w') as f:
+        with open(AUTHORIZATION_FILE, 'w') as f:
             json.dump(authorization, f)
 
+    return authorization
+
 # Configure client to use your account `authorization` by default
-Trakt.configuration.defaults.oauth.from_response(authorization)
+def configure_authorization(authorization):
+    if authorization and 'access_token' in authorization:
+        Trakt.configuration.defaults.oauth.from_response(authorization)
 
 # ------------------------------------------------------
 
 # Fetch list items
-list_test = Trakt['users/sadmanca/lists/test'].get()
-items = list_test.items()
+def fetch_list_items(list_slug):
+    return Trakt['users/sadmanca/lists/' + list_slug].items()
 
-# Cache data if items is NoneType
-data = None
-if items is None:
-    with open('data.json', 'r') as f:
-        cached_data = json.load(f)
+def main():
+    configure_client()
+    authorization = load_authorization()
+    authorization = refresh_token(authorization)
+    authenticate(authorization)
+    configure_authorization(authorization)
+    items = fetch_list_items('test')
 
-    if cached_data is None:
-        print('ERROR: No cached data found')
-        exit(1)
-    else:
-        data = cached_data
+    # Cache data if items is NoneType
+    data = None
+    if items is None:
+        with open('data.json', 'r') as f:
+            cached_data = json.load(f)
 
-if items is not None:
-    # Print list items
-    print('UNSHUFFLED:')
-    print(*items[:2], sep='\n')
-    print('...')
-    print(*items[-2:], sep='\n') 
+        if cached_data is None:
+            print('ERROR: No cached data found')
+            exit(1)
+        else:
+            data = cached_data
 
-    data = {
-        'movies': [{'ids': {'imdb': item.pk[1]}} for item in items if item.pk[0] == 'imdb'],
-        'shows':  [{'ids': {'tvdb': item.pk[1]}} for item in items if item.pk[0] == 'tvdb']
-    }
+    if items is not None:
+        # Print list items
+        print('UNSHUFFLED:')
+        print(*items[:2], sep='\n')
+        print('...')
+        print(*items[-2:], sep='\n') 
 
-# remove unshuffled items
-if data is not None:
-    Trakt['users/sadmanca/lists/test'].remove(data)
+        data = {
+            'movies': [{'ids': {'imdb': item.pk[1]}} for item in items if item.pk[0] == 'imdb'],
+            'shows':  [{'ids': {'tvdb': item.pk[1]}} for item in items if item.pk[0] == 'tvdb']
+        }
 
-# Shuffle items
-if items is not None:
-    shuffle(items)
+    # remove unshuffled items
+    if data is not None:
+        Trakt['users/sadmanca/lists/test'].remove(data)
 
-    print('-------------------')
-    print('SHUFFLED:')
-    print(*items[:2], sep='\n')
-    print('...')
-    print(*items[-2:], sep='\n')
+    # Shuffle items
+    if items is not None:
+        shuffle(items)
 
-    data = {
-        'movies': [{'ids': {'imdb': item.pk[1]}} for item in items if item.pk[0] == 'imdb'],
-        'shows':  [{'ids': {'tvdb': item.pk[1]}} for item in items if item.pk[0] == 'tvdb']
-    }
+        print('-------------------')
+        print('SHUFFLED:')
+        print(*items[:2], sep='\n')
+        print('...')
+        print(*items[-2:], sep='\n')
 
-if data is not None:
-    # Add shuffled items
-    Trakt['users/sadmanca/lists/test'].add(data)
+        data = {
+            'movies': [{'ids': {'imdb': item.pk[1]}} for item in items if item.pk[0] == 'imdb'],
+            'shows':  [{'ids': {'tvdb': item.pk[1]}} for item in items if item.pk[0] == 'tvdb']
+        }
 
-    # Cache data at end of program (if items is not NoneType)
-    with open('data.json', 'w') as f:
-        json.dump(data, f)
+    if data is not None:
+        # Add shuffled items
+        Trakt['users/sadmanca/lists/test'].add(data)
+
+        # Cache data at end of program (if items is not NoneType)
+        with open('data.json', 'w') as f:
+            json.dump(data, f)
+
+if __name__ == '__main__':
+    main()

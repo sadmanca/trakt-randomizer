@@ -5,11 +5,12 @@ from urllib.parse import urlparse
 import os
 import json
 import time
+import io
 
 import logging
 logging.basicConfig(format='%(asctime)s %(message)s', filename='test.log', level=logging.INFO)
 
-AUTHORIZATION_FILE = 'token.json'
+json_string = ""
 
 def configure_client():
     Trakt.configuration.defaults.app(
@@ -22,13 +23,10 @@ def configure_client():
     )
 
 def load_authorization():
-    if os.path.isfile(AUTHORIZATION_FILE):
-        with open(AUTHORIZATION_FILE, 'r') as f:
-            try:
-                authorization = json.load(f)
-            except json.JSONDecodeError:
-                authorization = None
-    else:
+    try:
+        json_string = os.environ.get('AUTHORIZATION_TOKEN')
+        authorization = json.loads(json_string)
+    except json.JSONDecodeError:
         authorization = None
 
     return authorization
@@ -39,8 +37,9 @@ def refresh_token(authorization):
         if Trakt['oauth'].token_refresh(authorization['refresh_token']):
             authorization = Trakt['oauth'].token_exchange(authorization['refresh_token'])
             authorization['created_at'] = time.time()
-            with open(AUTHORIZATION_FILE, 'w') as f:
-                json.dump(authorization, f)
+            with open('.env', 'w') as f:
+                json_string = json.dumps(authorization)
+                f.write(f'AUTHORIZATION_TOKEN={json_string}')
 
     return authorization
 
@@ -54,8 +53,9 @@ def authenticate(authorization):
             print('ERROR: Authentication failed')
             exit(1)
         authorization['created_at'] = time.time()
-        with open(AUTHORIZATION_FILE, 'w') as f:
-            json.dump(authorization, f)
+        with open('.env', 'w') as f:
+            json_string = json.dumps(authorization)
+            f.write(f'AUTHORIZATION_TOKEN={json_string}')
 
     return authorization
 
@@ -138,26 +138,25 @@ def copy_run(others_list_slug, self_list_slug, randomize=False):
 def multi_run(url_list):
     self_urls = []
     others_dict = {}
+    current_key = None
 
-    with open(url_list, 'r') as f:
-        current_key = None
-        for line in f:
-            line = line.strip()
-            if line.startswith('#'):
-                continue
-            elif line.startswith('[self]'):
-                current_key = 'self'
-                continue
-            elif line.startswith('[others]'):
-                current_key = 'others'
-                continue
-            if line:
-                urls = line.split(', ')
-                if current_key == 'self':
-                    self_urls.extend(urls)
-                elif current_key == 'others' and len(urls) == 2:
-                    others_dict[urls[0]] = urls[1]
-    
+    for line in url_list.split('\n'):
+        line = line.strip()
+        if line.startswith('#'):
+            continue
+        elif line.startswith('[self]'):
+            current_key = 'self'
+            continue
+        elif line.startswith('[others]'):
+            current_key = 'others'
+            continue
+        if line:
+            urls = line.split(', ')
+            if current_key == 'self':
+                self_urls.extend(urls)
+            elif current_key == 'others' and len(urls) == 2:
+                others_dict[urls[0]] = urls[1]
+
     for url in self_urls:
         run(urlparse(url).path[1:])
 
@@ -171,7 +170,8 @@ def main():
     authorization = refresh_token(authorization)
     authenticate(authorization)
     configure_authorization(authorization)
-    multi_run('url_list.txt')
+    url_list = os.environ.get('URL_LIST')
+    multi_run(url_list)
     logging.info('----------------------------------------')
 
 if __name__ == '__main__':

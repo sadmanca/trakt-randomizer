@@ -4,6 +4,8 @@ from random import shuffle
 import os
 import json
 import time
+import logging
+import datetime
 
 AUTHORIZATION_FILE = 'token.json'
 
@@ -64,15 +66,11 @@ def configure_authorization(authorization):
 
 # Fetch list items
 def fetch_list_items(list_slug):
-    max_retries = 4
-    retries = 0
-    while retries < max_retries:
-        items = Trakt['users/sadmanca/lists/' + list_slug].items()
-        if items is not None:
-            return items
-        retries += 1
-        time.sleep(3)
-    return None
+    items = Trakt['users/sadmanca/lists/' + list_slug].items()
+    if items is not None:
+        return items
+    else:
+        return None
 
 def fetch_cached_data(items):
     # Cache data if items is None
@@ -82,14 +80,15 @@ def fetch_cached_data(items):
 
     return {}
 
-def print_list_items(items, msg):
+def write_to_log(items, msg, log_file):
     if items is not None:
-        print(msg)
+        logging.basicConfig(format='%(asctime)s %(message)s', filename=log_file, level=logging.INFO)
+        logging.info(msg)
         for item in items[:2]:
-            print(f' {item}')
-        print(' ...')
+            logging.info(f'    {item}')
+        logging.info('    ...')
         for item in items[-2:]:
-            print(f' {item}')
+            logging.info(f'    {item}')
 
 def format_data(items):
     return {
@@ -105,19 +104,19 @@ def cache_data(data):
 
 def run(data, items):
     if items is not None:
-        print_list_items(items, 'ORIGINAL:')
+        write_to_log(items, 'ORIGINAL:', 'test.log')
         data = format_data(items)
 
     # remove unshuffled items
     if data is not None:
         Trakt['users/sadmanca/lists/test'].remove(data)
+        time.sleep(1)
 
     # Shuffle items
     if items is not None:
         shuffle(items)
 
-        print('-------------------')
-        print_list_items(items, 'SHUFFLED:')
+        write_to_log(items, 'SHUFFLED:', 'test.log')
         data = format_data(items)
 
     if data is not None:

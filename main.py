@@ -111,23 +111,58 @@ def run(list_slug):
         Trakt[list_slug].add(data)
         time.sleep(1)
 
+def copy_run(others_list_slug, self_list_slug, randomize=False):
+    self_items = fetch_list_items(self_list_slug)
+    others_items = fetch_list_items(others_list_slug)
+
+    if others_items is not None and self_items is not None:
+        logging.info(self_list_slug)
+        write_to_log(self_items, 'ORIGINAL:')
+        
+        data = format_data(self_items)
+        Trakt[self_list_slug].remove(data)
+        time.sleep(1)
+
+        logging.info(others_list_slug)
+        if randomize:
+            shuffle(others_items)
+            write_to_log(others_items, 'NEW, SHUFFLED:')
+        else:
+            write_to_log(others_items, 'NEW, NOT SHUFFLED:')
+
+        # Add shuffled items
+        data = format_data(others_items)
+        Trakt[self_list_slug].add(data)
+        time.sleep(1)
+
 def multi_run(url_list):
-    url_dict = {}
+    self_urls = []
+    others_dict = {}
 
     with open(url_list, 'r') as f:
-        current_section = None
+        current_key = None
         for line in f:
             line = line.strip()
-            if line.startswith('[') and line.endswith(']'):
-                current_section = line[1:-1]
-                url_dict[current_section] = []
-            elif line:
-                url_dict[current_section].append(urlparse(line).path[1:])
+            if line.startswith('#'):
+                continue
+            elif line.startswith('[self]'):
+                current_key = 'self'
+                continue
+            elif line.startswith('[others]'):
+                current_key = 'others'
+                continue
+            if line:
+                urls = line.split(', ')
+                if current_key == 'self':
+                    self_urls.extend(urls)
+                elif current_key == 'others' and len(urls) == 2:
+                    others_dict[urls[0]] = urls[1]
     
-    self_urls = url_dict['self']
     for url in self_urls:
-        print(url)
-        run(url)
+        run(urlparse(url).path[1:])
+
+    for key, value in others_dict.items():
+        copy_run(urlparse(key).path[1:], urlparse(value).path[1:], randomize=True)
 
 def main():
     load_dotenv()

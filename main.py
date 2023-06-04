@@ -1,13 +1,17 @@
 from trakt import Trakt
 from dotenv import load_dotenv
 from random import shuffle
+from urllib.parse import urlparse
 import os
 import json
 import time
+
 import logging
-import datetime
+logging.basicConfig(format='%(asctime)s %(message)s', filename='test.log', level=logging.INFO)
 
 AUTHORIZATION_FILE = 'token.json'
+url = 'https://trakt.tv/users/sadmanca/lists/test?sort=added,asc'
+list_slug = urlparse(url).path[1:]
 
 def configure_client():
     Trakt.configuration.defaults.app(
@@ -66,23 +70,15 @@ def configure_authorization(authorization):
 
 # Fetch list items
 def fetch_list_items(list_slug):
-    items = Trakt['users/sadmanca/lists/' + list_slug].items()
+    items = Trakt[list_slug].items()
     if items is not None:
         return items
     else:
-        return None
+        print('ERROR: Could not fetch list items')
+        exit(1)
 
-def fetch_cached_data(items):
-    # Cache data if items is None
-    if items is None:
-        with open('data.json') as f:
-            return json.load(f)
-
-    return {}
-
-def write_to_log(items, msg, log_file):
+def write_to_log(items, msg):
     if items is not None:
-        logging.basicConfig(format='%(asctime)s %(message)s', filename=log_file, level=logging.INFO)
         logging.info(msg)
         for item in items[:2]:
             logging.info(f'    {item}')
@@ -96,32 +92,26 @@ def format_data(items):
         'shows':  [{'ids': {'tvdb': item.pk[1]}} for item in items if item.pk[0] == 'tvdb']
     }
 
-def cache_data(data):
-    # Cache data at end of program (if items is not NoneType)
-    if data:
-        with open('data.json', 'w') as f:
-            json.dump(data, f)
+def run(list_slug):
+    items = fetch_list_items(list_slug)
 
-def run(data, items):
     if items is not None:
-        write_to_log(items, 'ORIGINAL:', 'test.log')
+        logging.info(list_slug)
+        write_to_log(items, 'ORIGINAL:')
         data = format_data(items)
 
-    # remove unshuffled items
-    if data is not None:
-        Trakt['users/sadmanca/lists/test'].remove(data)
+        # remove unshuffled items
+        Trakt[list_slug].remove(data)
         time.sleep(1)
 
-    # Shuffle items
-    if items is not None:
         shuffle(items)
 
-        write_to_log(items, 'SHUFFLED:', 'test.log')
+        write_to_log(items, 'SHUFFLED:')
         data = format_data(items)
 
-    if data is not None:
         # Add shuffled items
-        Trakt['users/sadmanca/lists/test'].add(data)
+        Trakt[list_slug].add(data)
+        time.sleep(1)
 
 def main():
     load_dotenv()
@@ -130,10 +120,9 @@ def main():
     authorization = refresh_token(authorization)
     authenticate(authorization)
     configure_authorization(authorization)
-    items = fetch_list_items('test')
-    data = fetch_cached_data(items)
-    run(data, items)
-    cache_data(data)
+    run(list_slug)
+    logging.info('----------------------------------------')
+
 
 if __name__ == '__main__':
     main()

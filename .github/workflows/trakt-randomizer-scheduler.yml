@@ -1,0 +1,33 @@
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+
+name: trakt-randomizer-scheduler
+
+on:
+  schedule:
+  - cron: "*/5 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.9"
+        cache: 'pip' # caching pip dependencies
+        
+    - name: Install dependencies
+      run: |
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        
+    - name: 'Create env file'
+      run: |
+        echo "${{ secrets.ENV_FILE }}" > .env        
+        
+    - name: Run main.py
+      run: |
+        python main.py

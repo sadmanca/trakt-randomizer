@@ -5,7 +5,6 @@ from urllib.parse import urlparse
 import os
 import json
 import time
-import io
 
 import logging
 logging.basicConfig(format='%(asctime)s %(message)s', filename='test.log', level=logging.INFO)

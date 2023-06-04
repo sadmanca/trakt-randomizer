@@ -1,0 +1,9 @@
+[self]
+https://trakt.tv/users/sadmanca/lists/test
+https://trakt.tv/users/sadmanca/lists/test2
+https://trakt.tv/users/sadmanca/lists/test3
+
+[others]
+https://trakt.tv/users/sadmanca/lists/ama
+https://trakt.tv/users/sadmanca/lists/za2
+https://trakt.tv/users/sadmanca/lists/costa

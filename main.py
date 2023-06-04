@@ -10,8 +10,6 @@ import logging
 logging.basicConfig(format='%(asctime)s %(message)s', filename='test.log', level=logging.INFO)
 
 AUTHORIZATION_FILE = 'token.json'
-url = 'https://trakt.tv/users/sadmanca/lists/test?sort=added,asc'
-list_slug = urlparse(url).path[1:]
 
 def configure_client():
     Trakt.configuration.defaults.app(
@@ -113,6 +111,24 @@ def run(list_slug):
         Trakt[list_slug].add(data)
         time.sleep(1)
 
+def multi_run(url_list):
+    url_dict = {}
+
+    with open(url_list, 'r') as f:
+        current_section = None
+        for line in f:
+            line = line.strip()
+            if line.startswith('[') and line.endswith(']'):
+                current_section = line[1:-1]
+                url_dict[current_section] = []
+            elif line:
+                url_dict[current_section].append(urlparse(line).path[1:])
+    
+    self_urls = url_dict['self']
+    for url in self_urls:
+        print(url)
+        run(url)
+
 def main():
     load_dotenv()
     configure_client()
@@ -120,9 +136,8 @@ def main():
     authorization = refresh_token(authorization)
     authenticate(authorization)
     configure_authorization(authorization)
-    run(list_slug)
+    multi_run('url_list.txt')
     logging.info('----------------------------------------')
-
 
 if __name__ == '__main__':
     main()

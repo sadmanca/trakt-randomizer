@@ -23,14 +23,14 @@ jobs:
         
     - name: Install dependencies
       run: |
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        
-    - name: 'Create env file'
-      env:
-        ENV_FILE: ${{ secrets.ENV_FILE }}    
-      run: |
-        echo "${{ secrets.ENV_FILE }}" > .env        
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi     
         
     - name: Run main.py
+      env:
+        AUTHORIZATION_TOKEN: ${{ secrets.AUTHORIZATION_TOKEN }}
+        TRAKT_APP_API_ID: ${{ secrets.TRAKT_APP_API_ID }}
+        TRAKT_APP_API_SECRET: ${{ secrets.TRAKT_APP_API_SECRET }}
+        TRAKT_APP_ID: ${{ secrets.TRAKT_APP_ID }}
+        URL_LIST: ${{ secrets.URL_LIST }}        
       run: |
         python main.py

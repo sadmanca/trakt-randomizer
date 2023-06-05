@@ -7,7 +7,10 @@ import json
 import time
 
 import logging
-logging.basicConfig(format='%(asctime)s %(message)s', filename='test.log', level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
+handler = logging.FileHandler('test.log', encoding='utf-8')
+handler.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
+logging.getLogger().addHandler(handler)
 
 json_string = ""
 
@@ -84,6 +87,7 @@ def write_to_log(items, msg):
             logging.info(f'    {item}')
 
 def format_data(items):
+    items = items[:1000] # Trakt limit for number of items in a personal list w/o VIP
     return {
         'movies': [{'ids': {'imdb': item.pk[1]}} for item in items if item.pk[0] == 'imdb'],
         'shows':  [{'ids': {'tvdb': item.pk[1]}} for item in items if item.pk[0] == 'tvdb']
